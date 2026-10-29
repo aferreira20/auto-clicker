@@ -87,6 +87,7 @@ namespace AutoClicker
         private readonly RadioButton rbLeft;
         private readonly RadioButton rbRight;
         private readonly RadioButton rbBoth;
+        private readonly RadioButton rbSimul;
         private readonly NumericUpDown numInterval;
         private readonly CheckBox chkDouble;
         private readonly CheckBox chkBlockSpace;
@@ -104,7 +105,7 @@ namespace AutoClicker
 
         // Settings copied for the worker thread
         private volatile int intervalMs;
-        private volatile int buttonMode; // 0 = left, 1 = right, 2 = alternate
+        private volatile int buttonMode; // 0 = left, 1 = right, 2 = alternate, 3 = both each cycle
         private volatile bool doubleClick;
 
         public MainForm()
@@ -113,26 +114,30 @@ namespace AutoClicker
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(320, 300);
+            ClientSize = new Size(400, 300);
             Font = new Font("Arial", 9F);
             TopMost = true;
 
             GroupBox grpButton = new GroupBox();
             grpButton.Text = "Botão do mouse";
-            grpButton.SetBounds(12, 10, 296, 50);
+            grpButton.SetBounds(12, 10, 376, 50);
             rbLeft = new RadioButton();
             rbLeft.Text = "Esquerdo";
             rbLeft.Checked = true;
             rbLeft.SetBounds(10, 20, 85, 22);
             rbRight = new RadioButton();
             rbRight.Text = "Direito";
-            rbRight.SetBounds(100, 20, 80, 22);
+            rbRight.SetBounds(95, 20, 75, 22);
             rbBoth = new RadioButton();
             rbBoth.Text = "Alternar";
-            rbBoth.SetBounds(185, 20, 100, 22);
+            rbBoth.SetBounds(170, 20, 85, 22);
+            rbSimul = new RadioButton();
+            rbSimul.Text = "Ambos";
+            rbSimul.SetBounds(260, 20, 100, 22);
             grpButton.Controls.Add(rbLeft);
             grpButton.Controls.Add(rbRight);
             grpButton.Controls.Add(rbBoth);
+            grpButton.Controls.Add(rbSimul);
 
             Label lblInterval = new Label();
             lblInterval.Text = "Intervalo entre cliques (ms):";
@@ -141,19 +146,19 @@ namespace AutoClicker
             numInterval.Minimum = 1;
             numInterval.Maximum = 600000;
             numInterval.Value = 100;
-            numInterval.SetBounds(200, 72, 108, 22);
+            numInterval.SetBounds(280, 72, 108, 22);
 
             chkDouble = new CheckBox();
             chkDouble.Text = "Clique duplo";
-            chkDouble.SetBounds(12, 102, 290, 22);
+            chkDouble.SetBounds(12, 102, 376, 22);
 
             chkBlockSpace = new CheckBox();
             chkBlockSpace.Text = "Não repassar a barra de espaço a outros programas";
-            chkBlockSpace.SetBounds(12, 126, 296, 22);
+            chkBlockSpace.SetBounds(12, 126, 376, 22);
 
             btnToggle = new Button();
             btnToggle.Text = "Iniciar (Espaço)";
-            btnToggle.SetBounds(12, 160, 296, 40);
+            btnToggle.SetBounds(12, 160, 376, 40);
             btnToggle.Click += delegate { Toggle(); };
             // Avoid the button reacting to the space bar itself (would double-toggle)
             btnToggle.TabStop = false;
@@ -163,18 +168,18 @@ namespace AutoClicker
             lblStatus.Font = new Font("Arial", 14F, FontStyle.Bold);
             lblStatus.ForeColor = Color.Firebrick;
             lblStatus.TextAlign = ContentAlignment.MiddleCenter;
-            lblStatus.SetBounds(12, 208, 296, 30);
+            lblStatus.SetBounds(12, 208, 376, 30);
 
             lblCount = new Label();
             lblCount.Text = "Cliques: 0";
             lblCount.TextAlign = ContentAlignment.MiddleCenter;
-            lblCount.SetBounds(12, 240, 296, 20);
+            lblCount.SetBounds(12, 240, 376, 20);
 
             Label lblHelp = new Label();
             lblHelp.Text = "Pressione ESPAÇO para iniciar / parar o loop.";
             lblHelp.ForeColor = Color.DimGray;
             lblHelp.TextAlign = ContentAlignment.MiddleCenter;
-            lblHelp.SetBounds(12, 266, 296, 20);
+            lblHelp.SetBounds(12, 266, 376, 20);
 
             Controls.Add(grpButton);
             Controls.Add(lblInterval);
@@ -268,7 +273,7 @@ namespace AutoClicker
         {
             if (running) return;
             intervalMs = (int)numInterval.Value;
-            buttonMode = rbLeft.Checked ? 0 : (rbRight.Checked ? 1 : 2);
+            buttonMode = rbLeft.Checked ? 0 : rbRight.Checked ? 1 : rbBoth.Checked ? 2 : 3;
             doubleClick = chkDouble.Checked;
             Interlocked.Exchange(ref clickCount, 0);
 
@@ -303,6 +308,7 @@ namespace AutoClicker
             rbLeft.Enabled = enabled;
             rbRight.Enabled = enabled;
             rbBoth.Enabled = enabled;
+            rbSimul.Enabled = enabled;
             numInterval.Enabled = enabled;
             chkDouble.Enabled = enabled;
         }
@@ -317,11 +323,21 @@ namespace AutoClicker
                 long nextTick = 0;
                 while (running)
                 {
-                    bool right = buttonMode == 1 || (buttonMode == 2 && nextRight);
-                    nextRight = !nextRight;
-
-                    SendClick(right);
-                    if (doubleClick) SendClick(right);
+                    if (buttonMode == 3)
+                    {
+                        // Both buttons in the same cycle: left, then right
+                        SendClick(false);
+                        if (doubleClick) SendClick(false);
+                        SendClick(true);
+                        if (doubleClick) SendClick(true);
+                    }
+                    else
+                    {
+                        bool right = buttonMode == 1 || (buttonMode == 2 && nextRight);
+                        nextRight = !nextRight;
+                        SendClick(right);
+                        if (doubleClick) SendClick(right);
+                    }
                     Interlocked.Increment(ref clickCount);
 
                     // Fixed-rate scheduling; sleep in small slices so stop is responsive

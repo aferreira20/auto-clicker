@@ -1,6 +1,6 @@
 # Auto Clicker
 
-Auto clicker para Windows com botão esquerdo, direito ou alternado.
+Auto clicker para Windows: botão esquerdo, direito, alternado ou ambos no mesmo ciclo.
 
 ## Uso
 
